@@ -2389,7 +2389,7 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
         }
     }
 
-
+    // todo: (lasantha) not used
     private static List<Scope> getAllowedScopesForUserApplication(String username,
                                                                   Set<Scope> reqScopeSet) {
         String[] userRoles = null;

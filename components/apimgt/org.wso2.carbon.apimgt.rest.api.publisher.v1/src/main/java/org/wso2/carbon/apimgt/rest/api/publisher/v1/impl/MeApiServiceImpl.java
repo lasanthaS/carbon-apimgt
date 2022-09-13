@@ -18,16 +18,14 @@
 
 package org.wso2.carbon.apimgt.rest.api.publisher.v1.impl;
 
-import java.util.Base64;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.apimgt.impl.utils.APIUtil;
-import org.wso2.carbon.apimgt.rest.api.common.RestApiCommonUtil;
-import org.wso2.carbon.apimgt.rest.api.publisher.v1.MeApiService;
 import org.apache.cxf.jaxrs.ext.MessageContext;
-import org.wso2.carbon.apimgt.rest.api.util.utils.RestApiUtil;
-import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.apimgt.rest.api.publisher.v1.MeApiService;
+import org.wso2.carbon.apimgt.userctx.UserContext;
+
 import javax.ws.rs.core.Response;
+import java.util.Base64;
 
 /**
  * This is the service implementation class for operations related to the logged-in user (/me endpoint)
@@ -44,17 +42,19 @@ public class MeApiServiceImpl implements MeApiService {
      */
     public Response validateUserRole(String roleId, MessageContext messageContext) {
 
-        String userName = RestApiCommonUtil.getLoggedInUsername();
+//        String userName = RestApiCommonUtil.getLoggedInUsername();
+        String userName = UserContext.getThreadLocalUserContext().getUsername();
         boolean isUserInRole = false;
 
         if (roleId != null) {
-            try {
-                String roleName = new String(Base64.getUrlDecoder().decode(roleId));
-                log.debug("Checking whether user :" + userName + " has role : " + roleName);
-                isUserInRole = APIUtil.checkIfUserInRole(userName, roleName);
-            } catch (UserStoreException e) {
-                RestApiUtil.handleInternalServerError(e.getMessage(), e, log);
-            }
+//            try {
+            String roleName = new String(Base64.getUrlDecoder().decode(roleId));
+            log.debug("Checking whether user :" + userName + " has role : " + roleName);
+//                isUserInRole = APIUtil.checkIfUserInRole(userName, roleName);
+            isUserInRole = UserContext.getThreadLocalUserContext().hasRole(roleName);
+//            } catch (UserStoreException e) {
+//                RestApiUtil.handleInternalServerError(e.getMessage(), e, log);
+//            }
         }
         if (isUserInRole) {
             return Response.status(Response.Status.OK).build();
