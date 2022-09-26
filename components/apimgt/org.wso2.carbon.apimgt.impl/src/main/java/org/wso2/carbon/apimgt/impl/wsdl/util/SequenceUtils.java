@@ -31,8 +31,9 @@ import org.wso2.carbon.apimgt.api.model.APIIdentifier;
 import org.wso2.carbon.apimgt.api.model.SOAPToRestSequence;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.internal.ServiceReferenceHolder;
-import org.wso2.carbon.apimgt.impl.template.ConfigContext;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
+import org.wso2.carbon.apimgt.user.exceptions.UserException;
+import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.registry.api.Resource;
 import org.wso2.carbon.registry.core.Collection;
@@ -41,12 +42,9 @@ import org.wso2.carbon.registry.core.ResourceImpl;
 import org.wso2.carbon.registry.core.exceptions.RegistryException;
 import org.wso2.carbon.registry.core.service.RegistryService;
 import org.wso2.carbon.registry.core.session.UserRegistry;
-import org.wso2.carbon.registry.core.utils.RegistryUtils;
-import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -131,8 +129,7 @@ public class SequenceUtils {
             RegistryService registryService = ServiceReferenceHolder.getInstance().getRegistryService();
             int tenantId;
             UserRegistry registry;
-            tenantId = ServiceReferenceHolder.getInstance().getRealmService().getTenantManager()
-                    .getTenantId(tenantDomain);
+            tenantId = UserManagerHolder.getUserManager().getTenantId(tenantDomain);
             APIUtil.loadTenantRegistry(tenantId);
             registry = registryService.getGovernanceSystemRegistry(tenantId);
 
@@ -158,7 +155,7 @@ public class SequenceUtils {
             }
         } catch (ParseException e) {
             handleException("Error occurred while parsing the sequence json", e);
-        } catch (UserStoreException e) {
+        } catch (UserException e) {
             handleException("Error while reading tenant information", e);
         } catch (RegistryException e) {
             handleException("Error when create registry instance", e);
@@ -192,8 +189,7 @@ public class SequenceUtils {
                 PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
             }
             RegistryService registryService = ServiceReferenceHolder.getInstance().getRegistryService();
-            int tenantId = ServiceReferenceHolder.getInstance().getRealmService().getTenantManager()
-                    .getTenantId(tenantDomain);
+            int tenantId = UserManagerHolder.getUserManager().getTenantId(tenantDomain);
             APIUtil.loadTenantRegistry(tenantId);
             UserRegistry registry = registryService.getGovernanceSystemRegistry(tenantId);
             String resourcePath = APIConstants.API_LOCATION + RegistryConstants.PATH_SEPARATOR +
@@ -228,7 +224,7 @@ public class SequenceUtils {
             if (log.isDebugEnabled()) {
                 log.debug("Number of REST resources for " + resourcePath + " is: " + resources.length);
             }
-        } catch (UserStoreException e) {
+        } catch (UserException e) {
             handleException("Error while reading tenant information", e);
         } catch (RegistryException e) {
             handleException("Error when create registry instance", e);

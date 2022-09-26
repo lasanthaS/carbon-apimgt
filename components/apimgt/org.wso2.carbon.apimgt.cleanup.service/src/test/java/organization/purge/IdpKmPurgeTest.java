@@ -38,6 +38,7 @@ import org.wso2.carbon.apimgt.impl.dao.ApiMgtDAO;
 import org.wso2.carbon.apimgt.impl.dao.GatewayArtifactsMgtDAO;
 import org.wso2.carbon.apimgt.impl.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
+import org.wso2.carbon.apimgt.user.exceptions.UserException;
 import org.wso2.carbon.user.api.UserStoreException;
 
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class IdpKmPurgeTest {
         amAdmin = Mockito.mock(APIAdminImpl.class);
     }
 
-    @Test public void testOrganizationRemoval() throws APIManagementException, UserStoreException {
+    @Test public void testOrganizationRemoval() throws APIManagementException, UserException {
 
         PowerMockito.mockStatic(APIUtil.class);
 

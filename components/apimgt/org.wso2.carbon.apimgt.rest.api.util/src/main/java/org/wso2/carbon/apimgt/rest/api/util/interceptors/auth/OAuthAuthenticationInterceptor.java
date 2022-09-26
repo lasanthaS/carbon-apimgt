@@ -37,10 +37,8 @@ import org.wso2.carbon.apimgt.rest.api.util.impl.OAuthJwtAuthenticatorImpl;
 import org.wso2.carbon.apimgt.rest.api.util.impl.OAuthOpaqueAuthenticatorImpl;
 import org.wso2.carbon.apimgt.rest.api.util.utils.JWTAuthenticationUtils;
 import org.wso2.carbon.apimgt.rest.api.util.utils.RestApiUtil;
-import org.wso2.carbon.apimgt.userctx.UserContext;
-import org.wso2.carbon.apimgt.userctx.UserContextBuilderFactory;
-import org.wso2.carbon.apimgt.userctx.impl.OAuthJWTUserContextBuilderImpl;
-import org.wso2.carbon.apimgt.userctx.impl.OAuthOpaqueUserContextBuilderImpl;
+import org.wso2.carbon.apimgt.user.ctx.UserContext;
+import org.wso2.carbon.apimgt.user.ctx.builder.UserContextBuilderFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -136,10 +134,8 @@ public class OAuthAuthenticationInterceptor extends AbstractPhaseInterceptor {
                         logger.debug("User logged into Web app using OAuth Authentication");
                     }
                     logAuditOperation(inMessage);
-
                     UserContext.initThreadLocalUserContext(
                             UserContextBuilderFactory.createUserContextBuilder(accessToken));
-                    System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>> " + UserContext.getThreadLocalUserContext());
                 } else {
                     throw new AuthenticationException("Unauthenticated request");
                 }

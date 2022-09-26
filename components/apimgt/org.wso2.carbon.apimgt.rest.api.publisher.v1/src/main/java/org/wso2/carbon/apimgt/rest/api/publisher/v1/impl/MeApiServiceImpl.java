@@ -22,7 +22,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.cxf.jaxrs.ext.MessageContext;
 import org.wso2.carbon.apimgt.rest.api.publisher.v1.MeApiService;
-import org.wso2.carbon.apimgt.userctx.UserContext;
+import org.wso2.carbon.apimgt.user.ctx.UserContext;
 
 import javax.ws.rs.core.Response;
 import java.util.Base64;
@@ -41,20 +41,13 @@ public class MeApiServiceImpl implements MeApiService {
      * @return 200 if logged-in user has given role
      */
     public Response validateUserRole(String roleId, MessageContext messageContext) {
-
-//        String userName = RestApiCommonUtil.getLoggedInUsername();
         String userName = UserContext.getThreadLocalUserContext().getUsername();
         boolean isUserInRole = false;
 
         if (roleId != null) {
-//            try {
             String roleName = new String(Base64.getUrlDecoder().decode(roleId));
             log.debug("Checking whether user :" + userName + " has role : " + roleName);
-//                isUserInRole = APIUtil.checkIfUserInRole(userName, roleName);
             isUserInRole = UserContext.getThreadLocalUserContext().hasRole(roleName);
-//            } catch (UserStoreException e) {
-//                RestApiUtil.handleInternalServerError(e.getMessage(), e, log);
-//            }
         }
         if (isUserInRole) {
             return Response.status(Response.Status.OK).build();

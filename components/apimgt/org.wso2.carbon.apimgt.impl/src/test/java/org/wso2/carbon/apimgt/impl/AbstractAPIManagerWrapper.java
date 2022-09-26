@@ -80,9 +80,6 @@ public class AbstractAPIManagerWrapper extends AbstractAPIManager {
         this.apiPersistenceInstance = persistance;
     }
 
-    @Override
-    protected TenantManager getTenantManager() {return tenantManager;}
-
     protected API getApi(GovernanceArtifact artifact) throws APIManagementException {
         try {
 

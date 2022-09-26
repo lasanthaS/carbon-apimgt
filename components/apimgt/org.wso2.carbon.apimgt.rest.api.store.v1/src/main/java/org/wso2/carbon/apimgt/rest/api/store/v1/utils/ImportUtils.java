@@ -43,14 +43,13 @@ import org.wso2.carbon.apimgt.impl.importexport.utils.CommonUtil;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
 import org.wso2.carbon.apimgt.rest.api.store.v1.dto.ApplicationKeyDTO;
 import org.wso2.carbon.apimgt.rest.api.store.v1.models.ExportedSubscribedAPI;
-import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.apimgt.user.exceptions.UserException;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class ImportUtils {
@@ -147,12 +146,11 @@ public class ImportUtils {
      * @param organization   Organization
      * @return a list of APIIdentifiers of the skipped subscriptions
      * @throws APIManagementException if an error occurs while importing and adding subscriptions
-     * @throws UserStoreException     if an error occurs while checking whether the tenant domain exists
+     * @throws UserException     if an error occurs while checking whether the tenant domain exists
      */
     public static List<APIIdentifier> importSubscriptions(Set<ExportedSubscribedAPI> subscribedAPIs, String userId,
                                                           Application application, Boolean update, APIConsumer apiConsumer, String organization)
-            throws APIManagementException,
-            UserStoreException {
+            throws APIManagementException, UserException {
         List<APIIdentifier> skippedAPIList = new ArrayList<>();
         for (ExportedSubscribedAPI subscribedAPI : subscribedAPIs) {
             APIIdentifier apiIdentifier = subscribedAPI.getApiId();

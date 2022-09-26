@@ -11,6 +11,8 @@ import org.wso2.carbon.apimgt.api.model.Mediation;
 import org.wso2.carbon.apimgt.api.model.policy.PolicyConstants;
 import org.wso2.carbon.apimgt.impl.internal.ServiceReferenceHolder;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
+import org.wso2.carbon.apimgt.user.exceptions.UserException;
+import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
 import org.wso2.carbon.base.MultitenantConstants;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.registry.core.Collection;
@@ -18,7 +20,6 @@ import org.wso2.carbon.registry.core.Registry;
 import org.wso2.carbon.registry.core.RegistryConstants;
 import org.wso2.carbon.registry.core.Resource;
 import org.wso2.carbon.registry.core.exceptions.RegistryException;
-import org.wso2.carbon.user.api.UserStoreException;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
@@ -41,12 +42,12 @@ public class GlobalMediationPolicyImpl {
         try {
             if (!MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(internalOrganizationDomain)) {
                 startTenantFlow(internalOrganizationDomain);
-                int id = ServiceReferenceHolder.getInstance().getRealmService().getTenantManager().getTenantId(internalOrganizationDomain);
+                int id = UserManagerHolder.getUserManager().getTenantId(internalOrganizationDomain);
                 registry = ServiceReferenceHolder.getInstance().getRegistryService().getGovernanceSystemRegistry(id);
             } else {
                 registry = ServiceReferenceHolder.getInstance().getRegistryService().getGovernanceSystemRegistry(-1234);
             }
-        } catch (UserStoreException e) {
+        } catch (UserException e) {
             throw new APIManagementException("Error while retrieving Tenant id for organization" + organization);
         } catch (RegistryException e) {
             throw new APIManagementException("Error while retrieving Registry for organization" + organization);

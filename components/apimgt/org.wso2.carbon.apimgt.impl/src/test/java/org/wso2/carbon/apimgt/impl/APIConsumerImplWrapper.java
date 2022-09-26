@@ -24,13 +24,14 @@ import org.wso2.carbon.apimgt.api.APIManagementException;
 import org.wso2.carbon.apimgt.api.model.API;
 import org.wso2.carbon.apimgt.api.model.APIIdentifier;
 import org.wso2.carbon.apimgt.impl.dao.ApiMgtDAO;
-import org.wso2.carbon.apimgt.impl.dao.test.TestTenantManager;
+//import org.wso2.carbon.apimgt.impl.dao.test.TestTenantManager;
 import org.wso2.carbon.apimgt.impl.workflow.SampleWorkFlowExecutor;
 import org.wso2.carbon.apimgt.impl.workflow.WorkflowException;
 import org.wso2.carbon.apimgt.impl.workflow.WorkflowExecutor;
 import org.wso2.carbon.apimgt.persistence.APIPersistence;
-import org.wso2.carbon.user.api.UserStoreException;
-import org.wso2.carbon.user.core.tenant.TenantManager;
+import org.wso2.carbon.apimgt.user.exceptions.UserException;
+//import org.wso2.carbon.user.api.UserStoreException;
+//import org.wso2.carbon.user.core.tenant.TenantManager;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 
 public class APIConsumerImplWrapper extends APIConsumerImpl {
@@ -70,10 +71,10 @@ public class APIConsumerImplWrapper extends APIConsumerImpl {
     }
 
 
-    @Override
-    protected TenantManager getTenantManager() {
-        return new TestTenantManager();
-    }
+//    @Override
+//    protected TenantManager getTenantManager() {
+//        return new TestTenantManager();
+//    }
 
     protected boolean startTenantFlowForTenantDomain(String tenantDomain) {
         return true;
@@ -82,7 +83,7 @@ public class APIConsumerImplWrapper extends APIConsumerImpl {
     protected void endTenantFlow(){
     }
 
-    protected  int getTenantId(String requestedTenantDomain) throws UserStoreException {
+    protected  int getTenantId(String requestedTenantDomain) throws UserException {
         return -1234;
     }
 
