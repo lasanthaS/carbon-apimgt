@@ -41,6 +41,7 @@ import org.wso2.carbon.apimgt.rest.api.admin.v1.utils.mappings.ApplicationMappin
 import org.wso2.carbon.apimgt.rest.api.common.RestApiCommonUtil;
 import org.wso2.carbon.apimgt.rest.api.common.RestApiConstants;
 import org.wso2.carbon.apimgt.rest.api.util.utils.RestApiUtil;
+import org.wso2.carbon.apimgt.user.ctx.UserContext;
 import org.wso2.carbon.context.CarbonContext;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
@@ -168,7 +169,7 @@ public class ApplicationsApiServiceImpl implements ApplicationsApiService {
         String organization = RestApiUtil.getOrganization(messageContext);
         try {
             APIConsumer apiConsumer = APIManagerFactory.getInstance().getAPIConsumer(username);
-            String tenantDomain = CarbonContext.getThreadLocalCarbonContext().getTenantDomain();
+            String tenantDomain = UserContext.getThreadLocalUserContext().getOrganization();
             Application application = apiConsumer.getApplicationByUUID(applicationId, organization);
             if (application != null) {
                 String applicationTenantDomain = MultitenantUtils.getTenantDomain(application.getOwner());

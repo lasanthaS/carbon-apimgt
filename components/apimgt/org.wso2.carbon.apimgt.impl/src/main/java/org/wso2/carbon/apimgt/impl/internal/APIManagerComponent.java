@@ -174,7 +174,6 @@ public class APIManagerComponent {
             BundleContext bundleContext = componentContext.getBundleContext();
             addRxtConfigs();
             addApplicationsPermissionsToRegistry();
-            int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
             String filePath = CarbonUtils.getCarbonConfigDirPath() + File.separator + "api-manager.xml";
             configuration.load(filePath);
             CommonConfigDeployer configDeployer = new CommonConfigDeployer();
