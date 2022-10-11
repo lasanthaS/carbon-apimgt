@@ -40,7 +40,6 @@ import org.wso2.carbon.apimgt.throttle.policy.deployer.dto.SubscriptionPolicy;
 import org.wso2.carbon.apimgt.throttle.policy.deployer.dto.SubscriptionPolicyList;
 import org.wso2.carbon.apimgt.throttle.policy.deployer.exception.ThrottlePolicyDeployerException;
 import org.wso2.carbon.apimgt.throttle.policy.deployer.internal.ServiceReferenceHolder;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.event.processor.core.EventProcessorService;
 import org.wso2.carbon.event.processor.core.ExecutionPlanConfiguration;
 import org.wso2.carbon.event.processor.core.exception.ExecutionPlanConfigurationException;
@@ -74,9 +73,6 @@ public class PolicyUtil {
         List<String> policiesToUndeploy = new ArrayList<>();
 
         try {
-            PrivilegedCarbonContext.startTenantFlow();
-            PrivilegedCarbonContext.getThreadLocalCarbonContext()
-                    .setTenantDomain(APIConstants.SUPER_TENANT_DOMAIN, true);
             String policyFile;
             String policyString;
             if (Policy.PolicyType.SUBSCRIPTION.equals(policy.getType()) && policy instanceof SubscriptionPolicy) {
@@ -142,8 +138,6 @@ public class PolicyUtil {
             log.error("Error in creating execution plan", e);
         } catch (ExecutionPlanConfigurationException | ExecutionPlanDependencyValidationException e) {
             log.error("Error in deploying execution plan", e);
-        } finally {
-            PrivilegedCarbonContext.endTenantFlow();
         }
     }
 
@@ -197,9 +191,6 @@ public class PolicyUtil {
         EventProcessorService eventProcessorService =
                 ServiceReferenceHolder.getInstance().getEventProcessorService();
         try {
-            PrivilegedCarbonContext.startTenantFlow();
-            PrivilegedCarbonContext.getThreadLocalCarbonContext()
-                    .setTenantDomain(APIConstants.SUPER_TENANT_DOMAIN, true);
             Map<String, ExecutionPlanConfiguration> executionPlanConfigurationMap =
                     eventProcessorService.getAllActiveExecutionConfigurations();
             // Undeploy all the policies except the skip ones provided
@@ -219,8 +210,6 @@ public class PolicyUtil {
             }
         } catch (ExecutionPlanConfigurationException e) {
             log.error("Error in removing existing throttle policies", e);
-        } finally {
-            PrivilegedCarbonContext.endTenantFlow();
         }
     }
 
@@ -289,12 +278,7 @@ public class PolicyUtil {
      * @param policyFileNames list of policy file names
      */
     private static void undeployPolicies(List<String> policyFileNames) {
-
         try {
-            PrivilegedCarbonContext.startTenantFlow();
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().
-                    setTenantDomain(APIConstants.SUPER_TENANT_DOMAIN, true);
-
             EventProcessorService eventProcessorService =
                     ServiceReferenceHolder.getInstance().getEventProcessorService();
             for (String policyFileName : policyFileNames) {
@@ -310,8 +294,6 @@ public class PolicyUtil {
             }
         } catch (ExecutionPlanConfigurationException e) {
             log.error("Error in removing execution plan", e);
-        } finally {
-            PrivilegedCarbonContext.endTenantFlow();
         }
     }
 }

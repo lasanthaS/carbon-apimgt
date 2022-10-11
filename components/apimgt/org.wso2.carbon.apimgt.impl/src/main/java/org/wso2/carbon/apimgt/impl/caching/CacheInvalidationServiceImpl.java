@@ -27,7 +27,6 @@ import org.wso2.carbon.apimgt.api.model.subscription.URLMapping;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.dto.BasicAuthValidationInfoDTO;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
@@ -67,31 +66,23 @@ public class CacheInvalidationServiceImpl implements CacheInvalidationService {
             tenantDomain = temp.substring(0, temp.indexOf('/'));
         }
 
-        try {
-            isTenantFlowStarted = startTenantFlow(tenantDomain);
-            Cache cache = CacheProvider.getResourceCache();
-            if (apiContext.contains(APIConstants.POLICY_CACHE_CONTEXT)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Cleaning cache for policy update for tenant " + tenantDomain);
-                }
-                cache.removeAll();
-            } else {
-                String apiCacheKey = APIUtil.getAPIInfoDTOCacheKey(apiContext, apiVersion);
-                if (cache.containsKey(apiCacheKey)) {
-                    cache.remove(apiCacheKey);
-                }
-                for (ResourceCacheInvalidationDto uriTemplate : uriTemplates) {
-                    String resourceVerbCacheKey = APIUtil.getResourceInfoDTOCacheKey(apiContext, apiVersion,
-                            uriTemplate.getResourceURLContext(), uriTemplate.getHttpVerb());
-                    if (cache.containsKey(resourceVerbCacheKey)) {
-                        cache.remove(resourceVerbCacheKey);
-                    }
-                }
+        Cache cache = CacheProvider.getResourceCache();
+        if (apiContext.contains(APIConstants.POLICY_CACHE_CONTEXT)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Cleaning cache for policy update for tenant " + tenantDomain);
             }
-
-        } finally {
-            if (isTenantFlowStarted) {
-                endTenantFlow();
+            cache.removeAll();
+        } else {
+            String apiCacheKey = APIUtil.getAPIInfoDTOCacheKey(apiContext, apiVersion);
+            if (cache.containsKey(apiCacheKey)) {
+                cache.remove(apiCacheKey);
+            }
+            for (ResourceCacheInvalidationDto uriTemplate : uriTemplates) {
+                String resourceVerbCacheKey = APIUtil.getResourceInfoDTOCacheKey(apiContext, apiVersion,
+                        uriTemplate.getResourceURLContext(), uriTemplate.getHttpVerb());
+                if (cache.containsKey(resourceVerbCacheKey)) {
+                    cache.remove(resourceVerbCacheKey);
+                }
             }
         }
     }
@@ -115,25 +106,17 @@ public class CacheInvalidationServiceImpl implements CacheInvalidationService {
         }
 
         for (Map.Entry<String, Set<String>> tenantEntry : tenantDomainMap.entrySet()) {
-            boolean startTenantFlow = false;
-            try {
-                startTenantFlow = startTenantFlow(tenantEntry.getKey());
-                Cache gatewayUsernameCache = CacheProvider.getGatewayUsernameCache();
-                Cache gatewayInvalidUsernameCache = CacheProvider.getInvalidUsernameCache();
-                for (String username : tenantEntry.getValue()) {
-                    if (gatewayUsernameCache != null) {
-                        gatewayUsernameCache.remove(username);
-                    }
-                    if (gatewayInvalidUsernameCache != null) {
-                        BasicAuthValidationInfoDTO basicAuthValidationInfoDTO = new BasicAuthValidationInfoDTO();
-                        basicAuthValidationInfoDTO.setAuthenticated(false);
-                        basicAuthValidationInfoDTO.setDomainQualifiedUsername(username);
-                        gatewayInvalidUsernameCache.put(username, basicAuthValidationInfoDTO);
-                    }
+            Cache gatewayUsernameCache = CacheProvider.getGatewayUsernameCache();
+            Cache gatewayInvalidUsernameCache = CacheProvider.getInvalidUsernameCache();
+            for (String username : tenantEntry.getValue()) {
+                if (gatewayUsernameCache != null) {
+                    gatewayUsernameCache.remove(username);
                 }
-            } finally {
-                if (startTenantFlow) {
-                    endTenantFlow();
+                if (gatewayInvalidUsernameCache != null) {
+                    BasicAuthValidationInfoDTO basicAuthValidationInfoDTO = new BasicAuthValidationInfoDTO();
+                    basicAuthValidationInfoDTO.setAuthenticated(false);
+                    basicAuthValidationInfoDTO.setDomainQualifiedUsername(username);
+                    gatewayInvalidUsernameCache.put(username, basicAuthValidationInfoDTO);
                 }
             }
         }
@@ -151,22 +134,15 @@ public class CacheInvalidationServiceImpl implements CacheInvalidationService {
         boolean isSuperTenantFlowStarted = false;
         Map<String, String> cachedObjects = new HashMap<String, String>();
         // Removing from first Level gateway Cache and add it to invalid token Cache
-        try {
-            isSuperTenantFlowStarted = startTenantFlow(MultitenantConstants.SUPER_TENANT_DOMAIN_NAME);
-            gatewayCache = CacheProvider.getGatewayTokenCache();
-            Cache invalidGatewayCache = CacheProvider.getInvalidTokenCache();
-            for (String accessToken : accessTokens) {
-                Object cacheEntry = gatewayCache.get(accessToken);
-                if (cacheEntry != null) {
-                    //cachePut(accessToken, tenantDomain)
-                    cachedObjects.put(accessToken, cacheEntry.toString());
-                    gatewayCache.remove(accessToken);
-                    invalidGatewayCache.put(accessToken, cacheEntry.toString());
-                }
-            }
-        } finally {
-            if (isSuperTenantFlowStarted) {
-                endTenantFlow();
+        gatewayCache = CacheProvider.getGatewayTokenCache();
+        Cache invalidGatewayCache = CacheProvider.getInvalidTokenCache();
+        for (String accessToken : accessTokens) {
+            Object cacheEntry = gatewayCache.get(accessToken);
+            if (cacheEntry != null) {
+                //cachePut(accessToken, tenantDomain)
+                cachedObjects.put(accessToken, cacheEntry.toString());
+                gatewayCache.remove(accessToken);
+                invalidGatewayCache.put(accessToken, cacheEntry.toString());
             }
         }
 
@@ -209,29 +185,24 @@ public class CacheInvalidationServiceImpl implements CacheInvalidationService {
 
         //For each each tenant
         for (String tenantDomain : tenantMap.keySet()) {
-            try {
-                startTenantFlow(tenantDomain);
-                if (log.isDebugEnabled()) {
-                    log.debug("About to delete " + tenantMap.get(tenantDomain).size() + " tokens from tenant " +
-                            tenantDomain + "'s cache");
-                }
+            if (log.isDebugEnabled()) {
+                log.debug("About to delete " + tenantMap.get(tenantDomain).size() + " tokens from tenant " +
+                        tenantDomain + "'s cache");
+            }
 
-                Cache tenantGatewayCache = CacheProvider.getGatewayTokenCache();
-                Cache invalidtTenantGatewayCache = CacheProvider.getInvalidTokenCache();
+            Cache tenantGatewayCache = CacheProvider.getGatewayTokenCache();
+            Cache invalidtTenantGatewayCache = CacheProvider.getInvalidTokenCache();
 
-                //Remove all cached tokens from the tenant's cache
-                //Note: Best solution would have been to use the removeAll method of the cache. But it currently throws
-                //an NPE if at least one key in the list doesn't exist in the cache.
-                for (String accessToken : tenantMap.get(tenantDomain)) {
-                    tenantGatewayCache.remove(accessToken);
-                    invalidtTenantGatewayCache.put(accessToken, tenantDomain);
-                }
+            //Remove all cached tokens from the tenant's cache
+            //Note: Best solution would have been to use the removeAll method of the cache. But it currently throws
+            //an NPE if at least one key in the list doesn't exist in the cache.
+            for (String accessToken : tenantMap.get(tenantDomain)) {
+                tenantGatewayCache.remove(accessToken);
+                invalidtTenantGatewayCache.put(accessToken, tenantDomain);
+            }
 
-                if (log.isDebugEnabled()) {
-                    log.debug("Removed all cached tokens of " + tenantDomain + " from cache");
-                }
-            } finally {
-                endTenantFlow();
+            if (log.isDebugEnabled()) {
+                log.debug("Removed all cached tokens of " + tenantDomain + " from cache");
             }
         }
 
@@ -239,41 +210,19 @@ public class CacheInvalidationServiceImpl implements CacheInvalidationService {
 
     public void invalidateResourceCache(String context, String version, String organization,
                                         List<URLMapping> urlMappings) {
-
-        boolean isTenantFlowStarted = false;
-        try {
-            isTenantFlowStarted = startTenantFlow(organization);
-            Cache cache = CacheProvider.getResourceCache();
-            String apiCacheKey = APIUtil.getAPIInfoDTOCacheKey(context, version);
-            if (cache.containsKey(apiCacheKey)) {
-                cache.remove(apiCacheKey);
-            }
-            for (URLMapping uriTemplate : urlMappings) {
-                String resourceVerbCacheKey =
-                        APIUtil.getResourceInfoDTOCacheKey(context, version, uriTemplate.getUrlPattern(),
-                                uriTemplate.getHttpMethod());
-                if (cache.containsKey(resourceVerbCacheKey)) {
-                    cache.remove(resourceVerbCacheKey);
-                }
-            }
-
-        } finally {
-            if (isTenantFlowStarted) {
-                endTenantFlow();
+        Cache cache = CacheProvider.getResourceCache();
+        String apiCacheKey = APIUtil.getAPIInfoDTOCacheKey(context, version);
+        if (cache.containsKey(apiCacheKey)) {
+            cache.remove(apiCacheKey);
+        }
+        for (URLMapping uriTemplate : urlMappings) {
+            String resourceVerbCacheKey =
+                    APIUtil.getResourceInfoDTOCacheKey(context, version, uriTemplate.getUrlPattern(),
+                            uriTemplate.getHttpMethod());
+            if (cache.containsKey(resourceVerbCacheKey)) {
+                cache.remove(resourceVerbCacheKey);
             }
         }
-    }
-
-    protected void endTenantFlow() {
-
-        PrivilegedCarbonContext.endTenantFlow();
-    }
-
-    protected boolean startTenantFlow(String tenantDomain) {
-
-        PrivilegedCarbonContext.startTenantFlow();
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-        return true;
     }
 
     protected CacheManager getCacheManager() {

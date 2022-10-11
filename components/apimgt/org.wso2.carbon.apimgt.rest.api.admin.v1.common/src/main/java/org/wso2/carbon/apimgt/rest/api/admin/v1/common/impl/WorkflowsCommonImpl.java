@@ -33,10 +33,8 @@ import org.wso2.carbon.apimgt.rest.api.admin.v1.dto.WorkflowInfoDTO;
 import org.wso2.carbon.apimgt.rest.api.admin.v1.dto.WorkflowListDTO;
 import org.wso2.carbon.apimgt.rest.api.common.RestApiCommonUtil;
 import org.wso2.carbon.apimgt.rest.api.common.RestApiConstants;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
-import static org.wso2.carbon.utils.multitenancy.MultitenantConstants.SUPER_TENANT_DOMAIN_NAME;
 
 public class WorkflowsCommonImpl {
     private WorkflowsCommonImpl() {
@@ -111,7 +109,6 @@ public class WorkflowsCommonImpl {
      */
     public static void updateWorkflowStatus(String workflowReferenceId, WorkflowDTO body)
             throws APIManagementException {
-        boolean isTenantFlowStarted = false;
         ApiMgtDAO apiMgtDAO = ApiMgtDAO.getInstance();
         String username = RestApiCommonUtil.getLoggedInUsername();
         String tenantDomainOfUser = MultitenantUtils.getTenantDomain(username);
@@ -131,11 +128,6 @@ public class WorkflowsCommonImpl {
             String tenantDomain = workflowDTO.getTenantDomain();
             if (tenantDomain != null && !tenantDomain.equals(tenantDomainOfUser)) {
                 throw new APIManagementException(ExceptionCodes.UNAUTHORIZED);
-            }
-            if (tenantDomain != null && !SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                isTenantFlowStarted = true;
-                PrivilegedCarbonContext.startTenantFlow();
-                PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
             }
             if (body == null) {
                 throw new APIManagementException("Request payload is missing", ExceptionCodes.PARAMETER_NOT_PROVIDED);
@@ -168,10 +160,6 @@ public class WorkflowsCommonImpl {
         } catch (WorkflowException e) {
             String msg = "Error while resuming workflow " + workflowReferenceId;
             throw new APIManagementException(msg, ExceptionCodes.from(ExceptionCodes.INTERNAL_ERROR_WITH_SPECIFIC_DESC, msg));
-        } finally {
-            if (isTenantFlowStarted) {
-                PrivilegedCarbonContext.endTenantFlow();
-            }
         }
     }
 }

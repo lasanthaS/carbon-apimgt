@@ -34,7 +34,6 @@ import org.wso2.carbon.CarbonConstants;
 import org.wso2.carbon.apimgt.api.APIConsumer;
 import org.wso2.carbon.apimgt.api.APIDefinition;
 import org.wso2.carbon.apimgt.api.APIManagementException;
-import org.wso2.carbon.apimgt.api.APIMgtAuthorizationFailedException;
 import org.wso2.carbon.apimgt.api.APIMgtResourceNotFoundException;
 import org.wso2.carbon.apimgt.api.ExceptionCodes;
 import org.wso2.carbon.apimgt.api.WorkflowResponse;
@@ -132,7 +131,6 @@ import org.wso2.carbon.apimgt.persistence.exceptions.OASPersistenceException;
 import org.wso2.carbon.apimgt.persistence.mapper.APIMapper;
 import org.wso2.carbon.apimgt.user.exceptions.UserException;
 import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
@@ -249,11 +247,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             handleException("Failed to get Subscriber", e);
         }
         return subscriber;
-    }
-
-
-    protected void setUsernameToThreadLocalCarbonContext(String username) {
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setUsername(username);
     }
 
     protected int getTenantId(String requestedTenantDomain) throws UserException {
@@ -891,12 +884,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             } catch (APIManagementException e) {
                 throw new APIManagementException(e.getMessage(), ExceptionCodes.from(ExceptionCodes.APIMGT_DAO_EXCEPTION,
                         " of subscription for application " + application + " user " + userId));
-
-            }
-
-            boolean isTenantFlowStarted = false;
-            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                isTenantFlowStarted = startTenantFlowForTenantDomain(tenantDomain);
             }
 
             String applicationName = application.getName();
@@ -961,10 +948,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                 apiMgtDAO.removeSubscriptionById(subscriptionId);
                 log.error("Could not execute Workflow", e);
                 throw new APIManagementException("Could not execute Workflow", e, ExceptionCodes.WORKFLOW_EXCEPTION);
-            } finally {
-                if (isTenantFlowStarted) {
-                    endTenantFlow();
-                }
             }
 
 
@@ -1085,12 +1068,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             subscriptionId = apiMgtDAO.updateSubscription(apiTypeWrapper, inputSubscriptionId,
                     APIConstants.SubscriptionStatus.TIER_UPDATE_PENDING, requestedThrottlingPolicy);
 
-            boolean isTenantFlowStarted = false;
-            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                isTenantFlowStarted = startTenantFlowForTenantDomain(tenantDomain);
-            }
-
-
             try {
                 WorkflowExecutor updateSubscriptionWFExecutor =
                         getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_SUBSCRIPTION_UPDATE);
@@ -1148,10 +1125,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                 }
             } catch (WorkflowException e) {
                 throw new APIManagementException("Could not execute Workflow", e, ExceptionCodes.WORKFLOW_EXCEPTION);
-            } finally {
-                if (isTenantFlowStarted) {
-                    endTenantFlow();
-                }
             }
 
 
@@ -1725,10 +1698,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
         APIUtil.logAuditMessage(APIConstants.AuditLogConstants.APPLICATION, appLogObject.toString(),
                 APIConstants.AuditLogConstants.CREATED, this.username);
 
-        boolean isTenantFlowStarted = false;
-        if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-            isTenantFlowStarted = startTenantFlowForTenantDomain(tenantDomain);
-        }
         try {
 
             WorkflowExecutor appCreationWFExecutor = getWorkflowExecutor(WorkflowConstants.WF_TYPE_AM_APPLICATION_CREATION);
@@ -1751,10 +1720,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             apiMgtDAO.deleteApplication(application);
             log.error("Unable to execute Application Creation Workflow", e);
             handleException("Unable to execute Application Creation Workflow", e);
-        } finally {
-            if (isTenantFlowStarted) {
-                endTenantFlow();
-            }
         }
 
         if (log.isDebugEnabled()) {
@@ -2008,7 +1973,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
         }
         consumerKeysOfApplication = apiMgtDAO.getConsumerKeysForApplication(application.getId());
 
-        boolean isTenantFlowStarted = false;
         int applicationId = application.getId();
 
         boolean isCaseInsensitiveComparisons = Boolean.parseBoolean(getAPIManagerConfiguration().
@@ -2028,11 +1992,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
         try {
             String workflowExtRef;
             ApplicationWorkflowDTO workflowDTO;
-            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                PrivilegedCarbonContext.startTenantFlow();
-                isTenantFlowStarted = true;
-                PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-            }
 
             String deletePendingWorkflowRef = apiMgtDAO.getExternalWorkflowRefByInternalRefWorkflowType(applicationId, WorkflowConstants.WF_TYPE_AM_APPLICATION_DELETION);
             if (deletePendingWorkflowRef != null) {
@@ -2087,10 +2046,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             String errorMsg = "Could not execute Workflow, " + WorkflowConstants.WF_TYPE_AM_APPLICATION_DELETION + " " +
                     "for applicationID " + application.getId();
             throw new APIManagementException(errorMsg, e, ExceptionCodes.WORKFLOW_EXCEPTION);
-        } finally {
-            if (isTenantFlowStarted) {
-                endTenantFlow();
-            }
         }
 
         if (log.isDebugEnabled()) {
@@ -2280,8 +2235,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                                                                          String keyManagerName, String tenantDomain,
                                                                          boolean isImportMode)
     throws APIManagementException {
-
-        boolean isTenantFlowStarted = false;
         if (StringUtils.isEmpty(tenantDomain)) {
             tenantDomain = MultitenantUtils.getTenantDomain(userId);
         } else {
@@ -2331,10 +2284,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             }
         }
         try {
-            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                isTenantFlowStarted = startTenantFlowForTenantDomain(tenantDomain);
-            }
-
             //check if there are any existing key mappings set for the application and the key manager.
             if (apiMgtDAO.isKeyMappingExistsForApplication(application.getId(), keyManagerName, keyManagerId,
                     tokenType)) {
@@ -2516,10 +2465,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
             return keyDetails;
         } catch (WorkflowException e) {
             throw new APIManagementException("Could not execute Workflow", e, ExceptionCodes.WORKFLOW_EXCEPTION);
-        } finally {
-            if (isTenantFlowStarted) {
-                endTenantFlow();
-            }
         }
     }
 
@@ -2819,95 +2764,81 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                                                  String tokenScope,
                                                  String groupingId,
                                                  String jsonString, String keyManagerID) throws APIManagementException {
-        boolean tenantFlowStarted = false;
-        try {
-            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                PrivilegedCarbonContext.startTenantFlow();
-                PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-                tenantFlowStarted = true;
-            }
+        final String subscriberName = application.getSubscriber().getName();
 
-            final String subscriberName = application.getSubscriber().getName();
+        boolean isCaseInsensitiveComparisons = Boolean.parseBoolean(getAPIManagerConfiguration().
+                getFirstProperty(APIConstants.API_STORE_FORCE_CI_COMPARISIONS));
 
-            boolean isCaseInsensitiveComparisons = Boolean.parseBoolean(getAPIManagerConfiguration().
-                    getFirstProperty(APIConstants.API_STORE_FORCE_CI_COMPARISIONS));
+        boolean isUserAppOwner;
+        if (isCaseInsensitiveComparisons) {
+            isUserAppOwner = subscriberName.equalsIgnoreCase(userId);
+        } else {
+            isUserAppOwner = subscriberName.equals(userId);
+        }
 
-            boolean isUserAppOwner;
-            if (isCaseInsensitiveComparisons) {
-                isUserAppOwner = subscriberName.equalsIgnoreCase(userId);
+        if (!isUserAppOwner) {
+            throw new APIManagementException("user: " + userId + ", attempted to update OAuth application " +
+                    "owned by: " + subscriberName);
+        }
+        String keyManagerName;
+        KeyManagerConfigurationDTO keyManagerConfiguration =
+                apiMgtDAO.getKeyManagerConfigurationByUUID(keyManagerID);
+        String keyManagerTenant;
+        if (keyManagerConfiguration != null) {
+            keyManagerName = keyManagerConfiguration.getName();
+            keyManagerTenant = keyManagerConfiguration.getOrganization();
+        } else {
+            //keeping this just in case the name is sent by mistake.
+            keyManagerConfiguration =
+                    apiMgtDAO.getKeyManagerConfigurationByName(tenantDomain, keyManagerID);
+            if (keyManagerConfiguration == null) {
+                throw new APIManagementException(KEY_MANAGER + " " + keyManagerID + " couldn't found.",
+                        ExceptionCodes.KEY_MANAGER_NOT_REGISTERED);
             } else {
-                isUserAppOwner = subscriberName.equals(userId);
-            }
-
-            if (!isUserAppOwner) {
-                throw new APIManagementException("user: " + userId + ", attempted to update OAuth application " +
-                        "owned by: " + subscriberName);
-            }
-            String keyManagerName;
-            KeyManagerConfigurationDTO keyManagerConfiguration =
-                    apiMgtDAO.getKeyManagerConfigurationByUUID(keyManagerID);
-            String keyManagerTenant;
-            if (keyManagerConfiguration != null) {
-                keyManagerName = keyManagerConfiguration.getName();
+                keyManagerName = keyManagerID;
+                keyManagerID = keyManagerConfiguration.getUuid();
                 keyManagerTenant = keyManagerConfiguration.getOrganization();
-            } else {
-                //keeping this just in case the name is sent by mistake.
-                keyManagerConfiguration =
-                        apiMgtDAO.getKeyManagerConfigurationByName(tenantDomain, keyManagerID);
-                if (keyManagerConfiguration == null) {
-                    throw new APIManagementException(KEY_MANAGER + " " + keyManagerID + " couldn't found.",
-                            ExceptionCodes.KEY_MANAGER_NOT_REGISTERED);
-                } else {
-                    keyManagerName = keyManagerID;
-                    keyManagerID = keyManagerConfiguration.getUuid();
-                    keyManagerTenant = keyManagerConfiguration.getOrganization();
-                }
-            }
-
-            if (!keyManagerConfiguration.isEnabled()) {
-                throw new APIManagementException(KEY_MANAGER + " " + keyManagerName + " not activated in the requested " +
-                        "Tenant", ExceptionCodes.KEY_MANAGER_NOT_ENABLED);
-            }
-            if (KeyManagerConfiguration.TokenType.EXCHANGED.toString().equals(keyManagerConfiguration.getTokenType())) {
-                throw new APIManagementException(KEY_MANAGER + " " + keyManagerName + " doesn't support to generate" +
-                        " Client Application", ExceptionCodes.KEY_MANAGER_NOT_SUPPORTED_TOKEN_GENERATION);
-            }
-            //Create OauthAppRequest object by passing json String.
-            OAuthAppRequest oauthAppRequest = ApplicationUtils.createOauthAppRequest(application.getName(), null,
-                    callbackUrl, tokenScope, jsonString, application.getTokenType(), keyManagerTenant, keyManagerName);
-
-            oauthAppRequest.getOAuthApplicationInfo().addParameter(ApplicationConstants.APP_KEY_TYPE, tokenType);
-            String consumerKey = apiMgtDAO
-                    .getConsumerKeyByApplicationIdKeyTypeKeyManager(application.getId(), tokenType, keyManagerID);
-
-            oauthAppRequest.getOAuthApplicationInfo().setClientId(consumerKey);
-            //get key manager instance.
-            KeyManager keyManager = KeyManagerHolder.getKeyManagerInstance(keyManagerTenant, keyManagerName);
-            if (keyManager == null) {
-                throw new APIManagementException(
-                        KEY_MANAGER + " " + keyManagerName + " not initialized in the requested" + "Tenant",
-                        ExceptionCodes.KEY_MANAGER_INITIALIZATION_FAILED);
-            }
-            // set application attributes
-            oauthAppRequest.getOAuthApplicationInfo().putAllAppAttributes(application.getApplicationAttributes());
-            oauthAppRequest.getOAuthApplicationInfo().setApplicationUUID(application.getUUID());
-            //call update method.
-            OAuthApplicationInfo updatedAppInfo = keyManager.updateApplication(oauthAppRequest);
-            apiMgtDAO.updateApplicationKeyTypeMetaData(application.getId(), tokenType, keyManagerID, updatedAppInfo);
-            JSONObject appLogObject = new JSONObject();
-            appLogObject.put(APIConstants.AuditLogConstants.APPLICATION_NAME, updatedAppInfo.getClientName());
-            appLogObject.put("Updated Oauth app with Call back URL", callbackUrl);
-            appLogObject.put("Updated Oauth app with grant types", jsonString);
-
-            APIUtil.logAuditMessage(APIConstants.AuditLogConstants.APPLICATION, appLogObject.toString(),
-                    APIConstants.AuditLogConstants.UPDATED, this.username);
-            return updatedAppInfo;
-        } finally {
-            if (tenantFlowStarted) {
-                endTenantFlow();
             }
         }
 
+        if (!keyManagerConfiguration.isEnabled()) {
+            throw new APIManagementException(KEY_MANAGER + " " + keyManagerName + " not activated in the requested " +
+                    "Tenant", ExceptionCodes.KEY_MANAGER_NOT_ENABLED);
+        }
+        if (KeyManagerConfiguration.TokenType.EXCHANGED.toString().equals(keyManagerConfiguration.getTokenType())) {
+            throw new APIManagementException(KEY_MANAGER + " " + keyManagerName + " doesn't support to generate" +
+                    " Client Application", ExceptionCodes.KEY_MANAGER_NOT_SUPPORTED_TOKEN_GENERATION);
+        }
+        //Create OauthAppRequest object by passing json String.
+        OAuthAppRequest oauthAppRequest = ApplicationUtils.createOauthAppRequest(application.getName(), null,
+                callbackUrl, tokenScope, jsonString, application.getTokenType(), keyManagerTenant, keyManagerName);
+
+        oauthAppRequest.getOAuthApplicationInfo().addParameter(ApplicationConstants.APP_KEY_TYPE, tokenType);
+        String consumerKey = apiMgtDAO
+                .getConsumerKeyByApplicationIdKeyTypeKeyManager(application.getId(), tokenType, keyManagerID);
+
+        oauthAppRequest.getOAuthApplicationInfo().setClientId(consumerKey);
+        //get key manager instance.
+        KeyManager keyManager = KeyManagerHolder.getKeyManagerInstance(keyManagerTenant, keyManagerName);
+        if (keyManager == null) {
+            throw new APIManagementException(
+                    KEY_MANAGER + " " + keyManagerName + " not initialized in the requested" + "Tenant",
+                    ExceptionCodes.KEY_MANAGER_INITIALIZATION_FAILED);
+        }
+        // set application attributes
+        oauthAppRequest.getOAuthApplicationInfo().putAllAppAttributes(application.getApplicationAttributes());
+        oauthAppRequest.getOAuthApplicationInfo().setApplicationUUID(application.getUUID());
+        //call update method.
+        OAuthApplicationInfo updatedAppInfo = keyManager.updateApplication(oauthAppRequest);
+        apiMgtDAO.updateApplicationKeyTypeMetaData(application.getId(), tokenType, keyManagerID, updatedAppInfo);
+        JSONObject appLogObject = new JSONObject();
+        appLogObject.put(APIConstants.AuditLogConstants.APPLICATION_NAME, updatedAppInfo.getClientName());
+        appLogObject.put("Updated Oauth app with Call back URL", callbackUrl);
+        appLogObject.put("Updated Oauth app with grant types", jsonString);
+
+        APIUtil.logAuditMessage(APIConstants.AuditLogConstants.APPLICATION, appLogObject.toString(),
+                APIConstants.AuditLogConstants.UPDATED, this.username);
+        return updatedAppInfo;
     }
 
     public boolean isSubscriberValid(String userId)
@@ -3001,8 +2932,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                 description = (String) args[2];
             }
 
-            boolean isTenantFlowStarted = false;
-
             try {
                 //                if (workflowReference != null) {
                 WorkflowDTO workflowDTO = apiMgtDAO.retrieveWorkflow(workflowReference);
@@ -3013,12 +2942,6 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                     row.put("statusCode", 500);
                     row.put("message", "Could not find workflow for reference " + workflowReference);
                     return row;
-                }
-
-                String tenantDomain = workflowDTO.getTenantDomain();
-                if (tenantDomain != null && !org.wso2.carbon.utils.multitenancy.MultitenantConstants
-                        .SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-                    isTenantFlowStarted = startTenantFlowForTenantDomain(tenantDomain);
                 }
 
                 workflowDTO.setWorkflowDescription(description);
@@ -3055,24 +2978,9 @@ public class APIConsumerImpl extends AbstractAPIManager implements APIConsumer {
                 row.put("error", Boolean.TRUE);
                 row.put("statusCode", 500);
                 row.put("message", msg + e.getMessage());
-            } finally {
-                if (isTenantFlowStarted) {
-                    endTenantFlow();
-                }
             }
         }
         return row;
-    }
-
-    protected void endTenantFlow() {
-        PrivilegedCarbonContext.endTenantFlow();
-    }
-
-    protected boolean startTenantFlowForTenantDomain(String tenantDomain) {
-        boolean isTenantFlowStarted = true;
-        PrivilegedCarbonContext.startTenantFlow();
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-        return isTenantFlowStarted;
     }
 
     /**

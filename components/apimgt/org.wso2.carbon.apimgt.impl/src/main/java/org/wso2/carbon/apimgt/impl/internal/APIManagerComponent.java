@@ -94,9 +94,6 @@ import org.wso2.carbon.apimgt.user.mgt.UserConstants;
 import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
 import org.wso2.carbon.base.MultitenantConstants;
 import org.wso2.carbon.base.ServerConfiguration;
-import org.wso2.carbon.context.CarbonContext;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
-import org.wso2.carbon.context.RegistryType;
 import org.wso2.carbon.event.output.adapter.core.OutputEventAdapterConfiguration;
 import org.wso2.carbon.event.output.adapter.core.OutputEventAdapterService;
 import org.wso2.carbon.event.output.adapter.core.exception.OutputEventAdapterException;
@@ -504,22 +501,19 @@ public class APIManagerComponent {
                 String loggedInUser = UserContext.getThreadLocalUserContext().getUsername();
                 // Logged in user is not authorized to create the permission.
                 // Temporarily change the user to the admin for creating the permission
-                PrivilegedCarbonContext.getThreadLocalCarbonContext().setUsername(UserManagerHolder.getUserManager().getAdminUsername());
-                tenantGovReg = CarbonContext.getThreadLocalCarbonContext().getRegistry(RegistryType.USER_GOVERNANCE);
+                tenantGovReg = null; //CarbonContext.getThreadLocalCarbonContext().getRegistry(RegistryType.USER_GOVERNANCE);
                 Collection appRootNode = tenantGovReg.newCollection();
                 appRootNode.setProperty("name", "Applications");
                 tenantGovReg.put(permissionResourcePath, appRootNode);
-                PrivilegedCarbonContext.getThreadLocalCarbonContext().setUsername(loggedInUser);
             }
-        } catch (UserException e) {
-            throw new APIManagementException("Error while reading user store information.", e);
         } catch (org.wso2.carbon.registry.api.RegistryException e) {
             throw new APIManagementException("Error while creating new permission in registry", e);
         }
     }
 
     protected Registry getRegistry() {
-        return CarbonContext.getThreadLocalCarbonContext().getRegistry(RegistryType.USER_GOVERNANCE);
+//        return CarbonContext.getThreadLocalCarbonContext().getRegistry(RegistryType.USER_GOVERNANCE);
+        return null; //todo
     }
 
     private void configureEventPublisherProperties() {

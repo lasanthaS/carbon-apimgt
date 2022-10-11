@@ -43,7 +43,6 @@ import org.wso2.carbon.apimgt.api.ErrorItem;
 import org.wso2.carbon.apimgt.api.ExceptionCodes;
 import org.wso2.carbon.apimgt.api.FaultGatewaysException;
 import org.wso2.carbon.apimgt.api.MonetizationException;
-import org.wso2.carbon.apimgt.api.UnsupportedPolicyTypeException;
 import org.wso2.carbon.apimgt.api.WorkflowResponse;
 import org.wso2.carbon.apimgt.api.doc.model.APIResource;
 import org.wso2.carbon.apimgt.api.dto.CertificateInformationDTO;
@@ -192,7 +191,6 @@ import org.wso2.carbon.apimgt.persistence.mapper.APIProductMapper;
 import org.wso2.carbon.apimgt.persistence.mapper.DocumentMapper;
 import org.wso2.carbon.apimgt.user.exceptions.UserException;
 import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.databridge.commons.Event;
 import org.wso2.carbon.governance.custom.lifecycles.checklist.util.CheckListItem;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
@@ -2857,10 +2855,6 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
                                                         Map<String, Boolean> checklist) throws APIManagementException{
         APIStateChangeResponse response = new APIStateChangeResponse();
         try {
-            PrivilegedCarbonContext.startTenantFlow();
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().setUsername(this.username);
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(this.tenantDomain, true);
-
             String targetStatus;
             String providerName;
             String apiName;
@@ -2934,8 +2928,6 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
             }
         } catch (APIPersistenceException e) {
             handleExceptionWithCode("Error while accessing persistence layer", e, ExceptionCodes.INTERNAL_ERROR);
-        } finally {
-            PrivilegedCarbonContext.endTenantFlow();
         }
         return response;
     }

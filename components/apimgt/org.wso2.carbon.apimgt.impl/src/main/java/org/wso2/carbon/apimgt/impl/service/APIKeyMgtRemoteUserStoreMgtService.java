@@ -24,7 +24,6 @@ import org.wso2.carbon.apimgt.impl.dto.BasicAuthValidationInfoDTO;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
 import org.wso2.carbon.apimgt.user.exceptions.UserException;
 import org.wso2.carbon.apimgt.user.mgt.internal.UserManagerHolder;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.core.AbstractAdmin;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
@@ -42,8 +41,6 @@ public class APIKeyMgtRemoteUserStoreMgtService extends AbstractAdmin {
     public boolean authenticate(String username, String password) throws APIManagementException {
 
         String tenantDomain = MultitenantUtils.getTenantDomain(username);
-        PrivilegedCarbonContext.startTenantFlow();
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
 
         boolean isAuthenticated = false;
         try {
@@ -51,8 +48,6 @@ public class APIKeyMgtRemoteUserStoreMgtService extends AbstractAdmin {
             isAuthenticated = UserManagerHolder.getUserManager().authenticate(tenantAwareUserName, password);
         } catch (UserException e) {
             APIUtil.handleException("Error occurred while validating credentials of user " + username, e);
-        } finally {
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().endTenantFlow();
         }
         return isAuthenticated;
     }
@@ -68,16 +63,11 @@ public class APIKeyMgtRemoteUserStoreMgtService extends AbstractAdmin {
         String userRoles[] = null;
         String tenantDomain = MultitenantUtils.getTenantDomain(username);
 
-        PrivilegedCarbonContext.startTenantFlow();
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-
         try {
             userRoles = UserManagerHolder.getUserManager().getRoleListOfUser(
                     MultitenantUtils.getTenantAwareUsername(username));
         } catch (UserException e) {
             APIUtil.handleException("Error occurred retrieving roles of user " + username, e);
-        } finally {
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().endTenantFlow();
         }
         return userRoles;
     }
@@ -86,9 +76,6 @@ public class APIKeyMgtRemoteUserStoreMgtService extends AbstractAdmin {
             throws APIManagementException {
 
         String tenantDomain = MultitenantUtils.getTenantDomain(username);
-        PrivilegedCarbonContext.startTenantFlow();
-        PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
-
         BasicAuthValidationInfoDTO basicAuthValidationInfoDTO = new BasicAuthValidationInfoDTO();
         boolean isAuthenticated;
         String userRoles[];
@@ -112,8 +99,6 @@ public class APIKeyMgtRemoteUserStoreMgtService extends AbstractAdmin {
             basicAuthValidationInfoDTO.setUserRoleList(userRoles);
         } catch (UserException e) {
             APIUtil.handleException("Error occurred while retrieving user authentication info of user " + username, e);
-        } finally {
-            PrivilegedCarbonContext.getThreadLocalCarbonContext().endTenantFlow();
         }
         return basicAuthValidationInfoDTO;
     }

@@ -32,6 +32,7 @@ public class UserContext {
     private static final ThreadLocal<UserContext> currentUserContext = ThreadLocal.withInitial(UserContext::new);
 
     private String username;
+    private int organizationId;
     private String organization;
     private String[] roles;
     private Map<String, String> claims;
@@ -59,6 +60,7 @@ public class UserContext {
                     break;
                 case UserContextConstants.ATTRIB_ORGANIZATION:
                     this.organization = (String) properties.get(UserContextConstants.ATTRIB_ORGANIZATION);
+                    this.organizationId = -1; // todo
                     break;
                 case UserContextConstants.ATTRIB_ROLES:
                     this.roles = (String[]) properties.get(UserContextConstants.ATTRIB_ROLES);
@@ -80,6 +82,10 @@ public class UserContext {
 
     public String getUsername() {
         return username;
+    }
+
+    public int getOrganizationId() {
+        return organizationId;
     }
 
     public String getOrganization() {
