@@ -36,13 +36,25 @@ import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import org.apache.axiom.om.OMAbstractFactory;
+import org.apache.axiom.soap.SOAPEnvelope;
+import org.apache.axiom.soap.SOAPFactory;
+import org.apache.axiom.util.UIDGenerator;
+import org.apache.axis2.AxisFault;
+import org.apache.axis2.context.ConfigurationContext;
+import org.apache.axis2.context.OperationContext;
+import org.apache.axis2.context.ServiceContext;
+import org.apache.axis2.description.InOutAxisOperation;
 import org.apache.axis2.description.TransportOutDescription;
 import org.apache.axis2.engine.AxisConfiguration;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHeaders;
+import org.apache.synapse.Mediator;
+import org.apache.synapse.MessageContext;
 import org.apache.synapse.SynapseConstants;
+import org.apache.synapse.core.axis2.MessageContextCreatorForAxis2;
 import org.wso2.carbon.apimgt.common.gateway.dto.JWTConfigurationDto;
 import org.wso2.carbon.apimgt.gateway.APIMgtGatewayConstants;
 import org.wso2.carbon.apimgt.gateway.handlers.analytics.Constants;
@@ -62,10 +74,13 @@ import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.dto.APIKeyValidationInfoDTO;
 import org.wso2.carbon.apimgt.impl.utils.APIUtil;
 import org.wso2.carbon.apimgt.keymgt.model.entity.API;
+import org.wso2.carbon.core.multitenancy.utils.TenantAxisUtils;
+import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
+import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
+import scala.util.parsing.combinator.testing.Str;
 
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -152,7 +167,13 @@ public class WebsocketInboundHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof FullHttpRequest) {
             FullHttpRequest req = (FullHttpRequest) msg;
             populateContextHeaders(req, inboundMessageContext);
-            validateCorsHeaders(ctx, req);
+            String tenantDomain;
+            if (req.getUri().contains("/t/")) {
+                tenantDomain = MultitenantUtils.getTenantDomainFromUrl(req.getUri());
+            } else {
+                tenantDomain = MultitenantConstants.SUPER_TENANT_DOMAIN_NAME;
+            }
+            validateCorsHeaders(ctx, req, inboundMessageContext, tenantDomain);
 
             InboundProcessorResponseDTO responseDTO =
                     webSocketProcessor.handleHandshake(req, ctx, inboundMessageContext);
@@ -368,26 +389,111 @@ public class WebsocketInboundHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void validateCorsHeaders(ChannelHandlerContext ctx, FullHttpRequest req) throws APISecurityException {
-        // Current implementation supports validating only the 'origin' header
+    /**
+     * Validate CORS headers for Websocket endpoints
+     * @param ctx
+     * @param req
+     * @param inboundMessageContext
+     * @param tenantDomain
+     * @throws APISecurityException
+     * @throws AxisFault
+     */
+    private void validateCorsHeaders(ChannelHandlerContext ctx,
+                                     FullHttpRequest req,
+                                     InboundMessageContext inboundMessageContext,
+                                     String tenantDomain) throws APISecurityException, AxisFault {
+        // If the origin header is not present in the request or the CORS validation is disabled for websocket
+        // endpoints in the deployment.toml skip CORS validation.
+        String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+        if (origin == null || !APIUtil.isCORSValidationEnabledForWS()) {
+            return;
+        }
 
-        if (!APIUtil.isCORSValidationEnabledForWS()) {
-            return;
+        CORSConfiguration corsConfiguration = getCORSConfiguration(ctx, req, inboundMessageContext);
+        if (corsConfiguration != null && corsConfiguration.isCorsConfigurationEnabled()) {
+            // If the per API cors configuration is enabled, validate the origin header against the configured origins.
+            String allowedOrigin = assessAndGetAllowedOrigin(origin, corsConfiguration.getAccessControlAllowOrigins());
+            if (allowedOrigin != null) {
+                return;
+            }
+
+            // If the per API CORS validation is failed, but the mediation is enabled, invoke the mediation sequence
+            // and accept based on the result.
+            if (APIUtil.isAdditionalCorsValidationEnabled() && validateAdditionalCORS(origin, tenantDomain, false)) {
+                return;
+            }
+            handleCORSValidationFailure(ctx, req);
+        } else {
+            // If the per API CORS configuration is disabled, consider the global CORS configuration.
+            List<String> globalAllowedOrigins = getAllowedOrigins(APIUtil.getAllowedOrigins());
+            // If the global CORS configuration accept all origins, then if additional CORS validation is enabled,
+            // invoke the CORS mediation sequence.
+
+            if (globalAllowedOrigins.contains("*")) {
+                // if the global cors configuration contains *, then invoke the cors sequence if additional cors validation is enabled.
+                if (APIUtil.isAdditionalCorsValidationEnabled() && !validateAdditionalCORS(origin, tenantDomain, true)) {
+                    handleCORSValidationFailure(ctx, req);
+                }
+            } else {
+                // if the global cors configuration s accept only specific origins, validate against those origins.
+                String allowedOrigins = assessAndGetAllowedOrigin(origin, globalAllowedOrigins);
+                if (allowedOrigins == null) {
+                    // If no allowed origins, invoke the cors sequence of the config is enabled.
+                    if (APIUtil.isAdditionalCorsValidationEnabled()) {
+                        if (!validateAdditionalCORS(origin, tenantDomain, true)) {
+                            handleCORSValidationFailure(ctx, req);
+                        }
+                    } else {
+                        handleCORSValidationFailure(ctx, req);
+                    }
+                }
+            }
         }
-        String requestOrigin = req.headers().get(HttpHeaderNames.ORIGIN);
-        // Don't validate the 'origin' header if it's not present in the request
-        if (requestOrigin == null) {
-            return;
+    }
+
+    /**
+     * This method will convert the comma seperated allowed origin string to a list.
+     * @param allowedOrigins Comma seperated allowed origins
+     * @return List of allowed origins
+     */
+    private List<String> getAllowedOrigins(String allowedOrigins) {
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            return Arrays.asList(allowedOrigins.split(","));
         }
-        String allowedOrigin = assessAndGetAllowedOrigin(requestOrigin);
-        if (allowedOrigin == null) {
-            FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
-            ctx.writeAndFlush(httpResponse);
-            ctx.close();
-            log.warn("Validation of CORS origin header failed for WS request on: " + req.uri());
-            throw new APISecurityException(APISecurityConstants.CORS_ORIGIN_HEADER_VALIDATION_FAILED,
-                    APISecurityConstants.CORS_ORIGIN_HEADER_VALIDATION_FAILED_MESSAGE);
+        return new ArrayList<>();
+    }
+
+    /**
+     * This method will be used to validate the CORS configurations in the mediation level.
+     * @param origin Origin header value
+     * @param tenantDomain Tenant domain
+     * @param isAllowed Default state of the origin validation to be set to the message context
+     * @return - Whether the origin is allowed or not
+     * @throws AxisFault
+     */
+    private boolean validateAdditionalCORS(String origin, String tenantDomain, boolean isAllowed) throws AxisFault {
+        MessageContext messageContext = createSynapseMessageContext(tenantDomain);
+        Mediator corsSequence = getCorsSequence(messageContext);
+        if (corsSequence != null) {
+            messageContext.setProperty(APIConstants.CORS_CONFIGURATION_ENABLED, isCorsEnabled());
+            // Set the request origin to the message context
+            messageContext.setProperty(APIConstants.WS_ORIGIN, origin);
+            // Introducing the boolean property to handle origin validation in the sequence level
+            messageContext.setProperty(APIConstants.WS_CORS_ORIGIN_SUCCESS, isAllowed);
+            corsSequence.mediate(messageContext);
+            return (Boolean) messageContext.getProperty(APIConstants.WS_CORS_ORIGIN_SUCCESS);
         }
+        return isAllowed;
+    }
+
+    private void handleCORSValidationFailure(ChannelHandlerContext ctx,
+                                             FullHttpRequest req) throws APISecurityException {
+        FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+        ctx.writeAndFlush(httpResponse);
+        ctx.close();
+        log.warn("Validation of CORS origin header failed for WS request on: " + req.uri());
+        throw new APISecurityException(APISecurityConstants.CORS_ORIGIN_HEADER_VALIDATION_FAILED,
+                APISecurityConstants.CORS_ORIGIN_HEADER_VALIDATION_FAILED_MESSAGE);
     }
 
     private String assessAndGetAllowedOrigin(String origin) {
@@ -449,5 +555,47 @@ public class WebsocketInboundHandler extends ChannelInboundHandlerAdapter {
             apiProperties.put(WEB_SC_API_UT, corruptedWebSocketFrameException.closeStatus().code());
         }
         super.exceptionCaught(ctx, cause);
+    }
+
+    private static org.apache.synapse.MessageContext createSynapseMessageContext(String tenantDomain) throws AxisFault {
+        org.apache.axis2.context.MessageContext axis2MsgCtx = createAxis2MessageContext();
+        ServiceContext svcCtx = new ServiceContext();
+        OperationContext opCtx = new OperationContext(new InOutAxisOperation(), svcCtx);
+        axis2MsgCtx.setServiceContext(svcCtx);
+        axis2MsgCtx.setOperationContext(opCtx);
+        if (!tenantDomain.equals(MultitenantConstants.SUPER_TENANT_DOMAIN_NAME)) {
+            ConfigurationContext tenantConfigCtx =
+                    TenantAxisUtils.getTenantConfigurationContext(tenantDomain,
+                            axis2MsgCtx.getConfigurationContext());
+            axis2MsgCtx.setConfigurationContext(tenantConfigCtx);
+            axis2MsgCtx.setProperty(MultitenantConstants.TENANT_DOMAIN, tenantDomain);
+        } else {
+            axis2MsgCtx.setProperty(MultitenantConstants.TENANT_DOMAIN,
+                    MultitenantConstants.SUPER_TENANT_DOMAIN_NAME);
+        }
+        SOAPFactory fac = OMAbstractFactory.getSOAP11Factory();
+        SOAPEnvelope envelope = fac.getDefaultEnvelope();
+        axis2MsgCtx.setEnvelope(envelope);
+        return MessageContextCreatorForAxis2.getSynapseMessageContext(axis2MsgCtx);
+    }
+
+    private static org.apache.axis2.context.MessageContext createAxis2MessageContext() {
+        org.apache.axis2.context.MessageContext axis2MsgCtx = new org.apache.axis2.context.MessageContext();
+        axis2MsgCtx.setMessageID(UIDGenerator.generateURNString());
+        axis2MsgCtx.setConfigurationContext(org.wso2.carbon.inbound.endpoint.osgi.service.ServiceReferenceHolder.getInstance().getConfigurationContextService()
+                .getServerConfigContext());
+        axis2MsgCtx.setProperty(org.apache.axis2.context.MessageContext.CLIENT_API_NON_BLOCKING,
+                Boolean.TRUE);
+        axis2MsgCtx.setServerSide(true);
+        return axis2MsgCtx;
+    }
+
+    private Mediator getCorsSequence(MessageContext messageContext) throws AxisFault {
+        Mediator corsSequence = messageContext.getSequence(APIConstants.CORS_SEQUENCE_NAME);
+        return corsSequence;
+    }
+
+    protected boolean isCorsEnabled() {
+        return APIUtil.isCORSEnabled();
     }
 }

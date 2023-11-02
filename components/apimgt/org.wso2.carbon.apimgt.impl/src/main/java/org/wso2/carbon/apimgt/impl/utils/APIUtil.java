@@ -5812,6 +5812,19 @@ public final class APIUtil {
     }
 
     /**
+     * Used to get the configuration which is set to decide whether additional CORS validations via CORS sequence is
+     * enabled for Websocket APIs,
+     *
+     * @return true if additional CORS validation for WS APIs is enabled in api-manager.xml
+     */
+    public static boolean isAdditionalCorsValidationEnabled() {
+        String enableAddtionalCorsValidation = ServiceReferenceHolder.getInstance().getAPIManagerConfigurationService()
+                .getAPIManagerConfiguration()
+                .getFirstProperty(APIConstants.CORS_CONFIGURATION_ENABLE_WS_ADDITIONAL_VALIDATION);
+        return Boolean.parseBoolean(enableAddtionalCorsValidation);
+    }
+
+    /**
      * Used to get access control allowed origins define in api-manager.xml
      *
      * @return allow origins list defined in api-manager.xml
